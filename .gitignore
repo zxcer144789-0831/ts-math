@@ -1,0 +1,5 @@
+# 依賴：由 package-lock.json 透過 npm ci 重建
+node_modules/
+
+# 編譯產物：由 npm run build（tsc）從 src/ 產生
+dist/
