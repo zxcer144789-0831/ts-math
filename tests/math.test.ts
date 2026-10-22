@@ -1,10 +1,11 @@
 // 對應上一章的 test_adder.py / test_multiply.py / test_divider.py
 // 刻意傳錯型別的測試用 @ts-expect-error：證明 TypeScript 在「編譯期」就會擋下，
 // 而 math.ts 的 validate() 在「執行期」也會擋下（例如從純 JS 或命令列呼叫時）。
-import { add, divide, LIMIT, multiply } from "../src/math";
+import { add, divide, LIMIT, multiply, power, RESULT_LIMIT } from "../src/math";
 import { run } from "../src/index";
 
 const OUT_OF_RANGE = `out of range [-${LIMIT}, ${LIMIT}]`;
+const OVERFLOW = { ok: false, error: "OVERFLOW", detail: `result out of range [-${RESULT_LIMIT}, ${RESULT_LIMIT}]` };
 
 describe("add 加法器（test_adder.py）", () => {
   test("5 + 5", () => {
@@ -188,11 +189,110 @@ describe("divide 除法器（test_divider.py）", () => {
   });
 });
 
+describe("power 次方器", () => {
+  test("2 ^ 10", () => {
+    expect(power(2, 10)).toEqual({ ok: true, result: 1024n });
+  });
+
+  test("任何數的 0 次方為 1", () => {
+    expect(power(7, 0)).toEqual({ ok: true, result: 1n });
+  });
+
+  test("1 次方為本身", () => {
+    expect(power(-5, 1)).toEqual({ ok: true, result: -5n });
+  });
+
+  test("負底數：奇數次方為負、偶數次方為正", () => {
+    expect(power(-2, 3)).toEqual({ ok: true, result: -8n });
+    expect(power(-2, 4)).toEqual({ ok: true, result: 16n });
+  });
+
+  // --- edge cases：底數為 0、1、-1 ---
+
+  test("0 的 0 次方為 1（與 Python 相同）", () => {
+    expect(power(0, 0)).toEqual({ ok: true, result: 1n });
+  });
+
+  test("0 的正數次方為 0", () => {
+    expect(power(0, 5)).toEqual({ ok: true, result: 0n });
+  });
+
+  test("1 的極大次方不會跑 10^9 次迴圈", () => {
+    expect(power(1, 10 ** 9)).toEqual({ ok: true, result: 1n });
+  });
+
+  test("-1 的極大次方依奇偶決定正負", () => {
+    expect(power(-1, 10 ** 9)).toEqual({ ok: true, result: 1n });
+    expect(power(-1, 10 ** 9 - 1)).toEqual({ ok: true, result: -1n });
+  });
+
+  // --- 結果上限 10^18 ---
+
+  test("剛好等於上限：10 ^ 18", () => {
+    expect(power(10, 18)).toEqual({ ok: true, result: 10n ** 18n });
+  });
+
+  test("剛好等於負上限：(-10^6) ^ 3", () => {
+    expect(power(-(10 ** 6), 3)).toEqual({ ok: true, result: -(10n ** 18n) });
+  });
+
+  test("最大底數平方：(10^9) ^ 2", () => {
+    expect(power(10 ** 9, 2)).toEqual({ ok: true, result: 10n ** 18n });
+  });
+
+  test("bigint 避免精度遺失：3 ^ 37", () => {
+    expect(power(3, 37)).toEqual({ ok: true, result: 450_283_905_890_997_363n });
+    expect(Number.isSafeInteger(3 ** 37)).toBe(false);
+  });
+
+  test("超過上限：10 ^ 19", () => {
+    expect(power(10, 19)).toEqual(OVERFLOW);
+  });
+
+  test("超過上限：2 ^ 60", () => {
+    expect(power(2, 59)).toEqual({ ok: true, result: 2n ** 59n });
+    expect(power(2, 60)).toEqual(OVERFLOW);
+  });
+
+  test("超過負上限：(-10) ^ 19", () => {
+    expect(power(-10, 19)).toEqual(OVERFLOW);
+  });
+
+  test("極大指數會提早停止：2 ^ 10^9", () => {
+    expect(power(2, 10 ** 9)).toEqual(OVERFLOW);
+  });
+
+  // --- 輸入檢查 ---
+
+  test("負指數被拒絕", () => {
+    expect(power(2, -1)).toEqual({ ok: false, error: "INVALID_INPUT", detail: "b must be >= 0" });
+  });
+
+  test("小數被拒絕", () => {
+    expect(power(2, 0.5)).toEqual({ ok: false, error: "INVALID_INPUT", detail: "b must be int, got float" });
+  });
+
+  test("超大數被拒絕", () => {
+    expect(power(10 ** 100, 2)).toEqual({ ok: false, error: "INVALID_INPUT", detail: `a ${OUT_OF_RANGE}` });
+  });
+
+  test("a 為 null", () => {
+    // @ts-expect-error null 不是 number
+    expect(power(null, 2)).toEqual({ ok: false, error: "INVALID_INPUT", detail: "a must be int, got null" });
+  });
+
+  test("型別檢查優先於負指數檢查", () => {
+    // @ts-expect-error null 不是 number
+    expect(power(null, -1)).toEqual({ ok: false, error: "INVALID_INPUT", detail: "a must be int, got null" });
+  });
+});
+
 describe("run 命令列入口", () => {
   test.each([
     [["add", "5", "5"], "10"],
     [["multiply", "1000000000", "1000000000"], "1000000000000000000"],
     [["divide", "1", "4"], "0.25"],
+    [["power", "2", "10"], "1024"],
   ])("run(%j) 回傳 %s", (args, expected) => {
     expect(run(args)).toBe(expected);
   });
@@ -209,7 +309,11 @@ describe("run 命令列入口", () => {
     expect(() => run(["add", "4"])).toThrow("INVALID_INPUT: b must be int, got undefined");
   });
 
+  test("次方結果超過上限拋出 OVERFLOW", () => {
+    expect(() => run(["power", "10", "19"])).toThrow(/^OVERFLOW: /);
+  });
+
   test("未知運算拋出使用說明", () => {
-    expect(() => run(["power", "2", "3"])).toThrow(/Usage/);
+    expect(() => run(["modulo", "7", "3"])).toThrow(/Usage/);
   });
 });

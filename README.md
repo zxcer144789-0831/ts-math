@@ -1,4 +1,4 @@
-# ts-math：加法器、乘法器、除法器（TypeScript 版）
+# ts-math：加法器、乘法器、除法器、次方器（TypeScript 版）
 
 將上一章的 Python 版本（`../adder.py`、`../multiply.py`、`../divider.py` 與其 `test_*.py`）以 TypeScript 重寫，規格與測試案例一一對應。
 
@@ -9,10 +9,10 @@ ts-math/
 ├── package.json        ← scripts：npm test / npm run build / npm start
 ├── tsconfig.json       ← 編譯 src/ → dist/
 ├── src/
-│   ├── math.ts         ← add / multiply / divide 與輸入檢查
+│   ├── math.ts         ← add / multiply / divide / power 與輸入檢查
 │   └── index.ts        ← 對外匯出 + 命令列入口
 ├── tests/
-│   └── math.test.ts    ← 46 個 Jest 單元測試
+│   └── math.test.ts    ← 69 個 Jest 單元測試
 └── dist/               ← npm run build 後產生
 ```
 
@@ -39,6 +39,7 @@ npm install --save-dev typescript@5 jest ts-jest @types/jest @types/node
 | 型別或範圍錯誤 | `{ ok: false, error: "INVALID_INPUT", detail: "a must be int, got float" }` |
 | 除以 0 | `{ ok: false, error: "DIVISION_BY_ZERO", detail: "b must not be 0" }`（型別檢查優先） |
 | 乘法結果 | `bigint`，因為 10^9 × 10^9 = 10^18 超過 `Number.MAX_SAFE_INTEGER` |
+| 次方（新增，Python 版沒有） | `power(a, b)` 回傳 `bigint`；`b < 0` → `INVALID_INPUT: b must be >= 0`；結果絕對值超過 10^18 → `{ ok: false, error: "OVERFLOW", ... }`；`0 ** 0 = 1` |
 
 ### 和 Python 版不可避免的差異
 
@@ -58,7 +59,7 @@ npm test
 
 ```text
 Test Suites: 1 passed, 1 total
-Tests:       46 passed, 46 total
+Tests:       69 passed, 69 total
 ```
 
 ## 5. 編譯
@@ -89,7 +90,9 @@ node dist/index.js multiply 1000000000 1000000000     # 1000000000000000000
 node dist/index.js divide 1 4                         # 0.25
 node dist/index.js divide 2 0                         # DIVISION_BY_ZERO: b must not be 0   (exit 1)
 node dist/index.js add x 4                            # INVALID_INPUT: a must be int, got string (exit 1)
-node dist/index.js power 2 3                          # Usage: node dist/index.js <add|multiply|divide> <a> <b>
+node dist/index.js power 2 10                         # 1024
+node dist/index.js power 10 19                        # OVERFLOW: result out of range [-1000000000000000000, 1000000000000000000] (exit 1)
+node dist/index.js modulo 7 3                         # Usage: node dist/index.js <add|multiply|divide|power> <a> <b>
 ```
 
 當成模組載入：

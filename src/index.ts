@@ -1,13 +1,14 @@
-import { add, divide, multiply, Result } from "./math";
+import { add, divide, multiply, power, Result } from "./math";
 
-export { add, divide, multiply };
+export { add, divide, multiply, power };
 
-type Operation = "add" | "multiply" | "divide";
+type Operation = "add" | "multiply" | "divide" | "power";
 
 const operations: Record<Operation, (a: number, b: number) => Result<number | bigint>> = {
   add,
   multiply,
   divide,
+  power,
 };
 
 function isOperation(value: string): value is Operation {
@@ -25,7 +26,7 @@ function parseArg(raw: string | undefined): unknown {
 export function run(args: string[]): string {
   const [op, rawA, rawB] = args;
   if (op === undefined || !isOperation(op)) {
-    throw new Error(`Usage: node dist/index.js <add|multiply|divide> <a> <b>`);
+    throw new Error(`Usage: node dist/index.js <add|multiply|divide|power> <a> <b>`);
   }
   // 型別斷言只騙過編譯器；真正的型別檢查在 math.ts 的 validate() 執行期進行
   const out = operations[op](parseArg(rawA) as number, parseArg(rawB) as number);
